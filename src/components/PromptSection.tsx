@@ -5,6 +5,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { ArrowLeft, Send, Loader2, User, Bot } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import LocationDialog from "./LocationDialog";
+import DoctorsList from "./DoctorsList";
+import { doctorsData, DoctorSpecialty } from "@/data/doctors";
 
 interface PromptSectionProps {
   onBackToHome: () => void;
@@ -14,7 +17,36 @@ const PromptSection = ({ onBackToHome }: PromptSectionProps) => {
   const [input, setInput] = useState("");
   const [response, setResponse] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [showLocationDialog, setShowLocationDialog] = useState(false);
+  const [userLocation, setUserLocation] = useState("");
+  const [detectedSpecialty, setDetectedSpecialty] = useState<string>("");
+  const [filteredDoctors, setFilteredDoctors] = useState<any[]>([]);
   const { toast } = useToast();
+
+  const extractSpecialtyFromResponse = (aiResponse: string): string => {
+    const specialties = Object.keys(doctorsData);
+    const lowerResponse = aiResponse.toLowerCase();
+    
+    for (const specialty of specialties) {
+      if (lowerResponse.includes(specialty.toLowerCase()) || 
+          lowerResponse.includes(specialty.toLowerCase().slice(0, -1))) {
+        return specialty;
+      }
+    }
+    
+    // Additional checks for common medical terms
+    if (lowerResponse.includes('heart') || lowerResponse.includes('cardiac')) {
+      return 'Cardiology';
+    }
+    if (lowerResponse.includes('brain') || lowerResponse.includes('neuro')) {
+      return 'Neurology';
+    }
+    if (lowerResponse.includes('skin') || lowerResponse.includes('dermat')) {
+      return 'Dermatology';
+    }
+    
+    return "";
+  };
 
   const handleSubmit = async () => {
     if (!input.trim()) {
@@ -69,6 +101,13 @@ Your response:`;
       
       setResponse(data.response);
       
+      // Extract specialty and show location dialog
+      const specialty = extractSpecialtyFromResponse(data.response);
+      if (specialty) {
+        setDetectedSpecialty(specialty);
+        setShowLocationDialog(true);
+      }
+      
       toast({
         title: "Analysis Complete",
         description: "Your symptoms have been analyzed successfully.",
@@ -87,6 +126,25 @@ Your response:`;
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleLocationSubmit = (location: string) => {
+    setUserLocation(location);
+    setShowLocationDialog(false);
+    
+    // Filter doctors based on location and specialty
+    if (detectedSpecialty && doctorsData[detectedSpecialty as DoctorSpecialty]) {
+      const specialtyDoctors = doctorsData[detectedSpecialty as DoctorSpecialty];
+      const locationDoctors = specialtyDoctors.filter(
+        doctor => doctor.location.toLowerCase().includes(location.toLowerCase())
+      );
+      setFilteredDoctors(locationDoctors);
+    }
+  };
+
+  const handleLocationCancel = () => {
+    setShowLocationDialog(false);
+    setDetectedSpecialty("");
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -192,6 +250,15 @@ Your response:`;
         </Card>
       )}
 
+      {/* Doctors List */}
+      {userLocation && detectedSpecialty && (
+        <DoctorsList 
+          doctors={filteredDoctors}
+          specialty={detectedSpecialty}
+          userLocation={userLocation}
+        />
+      )}
+
       {/* Instructions */}
       {!response && !isLoading && (
         <Card className="p-4 bg-blue-50 border-blue-200">
@@ -204,6 +271,13 @@ Your response:`;
           </ul>
         </Card>
       )}
+
+      {/* Location Dialog */}
+      <LocationDialog 
+        isOpen={showLocationDialog}
+        onClose={handleLocationCancel}
+        onLocationSubmit={handleLocationSubmit}
+      />
     </div>
   );
 };
