@@ -86,7 +86,7 @@ Your response:`;
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'gemma2:latest',
+          model: 'gemma3:latest',
           prompt: prompt,
           stream: false
         })
